@@ -1,1 +1,116 @@
+blueprint:
+  name: SmInt - Universal MQTT Device Generator
+  description: >
+    Erzeugt ein MQTT Device für beliebige Tag-Reader (TR-K-xx).
+    Verbindet Schalter, Experiment-ID und Messwert zu einem Home Assistant Device.
+  domain: automation
+  input:
+    # --- Die Hardware/Logik Inputs ---
+    switch_entity:
+      name: Auslöser-Schalter (Input Boolean)
+      description: Der Schalter für den spezifischen Tag (z.B. input_boolean.tr_k_02_switch_tag_001).
+      selector:
+        entity:
+          domain: input_boolean
+    
+    name_entity:
+      name: Experiment Name (Input Text)
+      description: Beinhaltet die Experiment-ID (z.B. input_text.experiment_tag001).
+      selector:
+        entity:
+          domain: input_text
+          
+    value_entity:
+      name: Messwert (Input Number)
+      description: Beinhaltet den kWh Wert (z.B. input_number.tr_k_02_kwh_um_added_tag001).
+      selector:
+        entity:
+          domain: input_number
 
+    # --- Die Konfigurations-Inputs (Das ist NEU) ---
+    reader_id_string:
+      name: Reader ID für MQTT Topic
+      description: >
+        WICHTIG: Die Kennung des Readers im Topic.
+        Für TR-K-01 schreibe: tr_k_01_kwh
+        Für TR-K-02 schreibe: tr_k_02_kwh
+      default: "tr_k_01_kwh"
+
+    device_friendly_name:
+      name: Anzeigename des Geräts
+      description: Z.B. "03_Mikrowelle Stromverbrauch" oder "04_Absaugung"
+      default: "SmInt Gerät"
+    
+    manufacturer_name:
+      name: Hersteller Name
+      description: Z.B. "Karte 001", "Karte 002" etc.
+      default: "SmInt Generic"
+
+# Variablen Mapping für Templates
+variables:
+  var_name_entity: !input name_entity
+  var_value_entity: !input value_entity
+  var_friendly_name: !input device_friendly_name
+  var_manufacturer: !input manufacturer_name
+  var_reader_id: !input reader_id_string
+
+trigger:
+  - platform: state
+    entity_id: !input switch_entity
+    from: "off"
+    to: "on"
+    id: "turn_on"
+  - platform: state
+    entity_id: !input switch_entity
+    from: "on"
+    to: "off"
+    id: "turn_off"
+
+action:
+  - choose:
+      # ZWEIG 1: AN -> Config senden (Device erstellen)
+      - conditions:
+          - condition: trigger
+            id: "turn_on"
+        sequence:
+          - service: mqtt.publish
+            data:
+              # Hier wird die Reader ID dynamisch eingesetzt
+              topic: "homeassistant/sensor/{{ states(var_name_entity) }}/{{ var_reader_id }}/config"
+              retain: true
+              qos: 0
+              payload: >
+                {
+                  "name": "{{ var_friendly_name }}",
+                  "state_topic": "homeassistant/sensor/{{ states(var_name_entity) }}/{{ var_reader_id }}/state",
+                  "unit_of_measurement": "kWh",
+                  "device_class": "energy",
+                  "state_class": "total",
+                  "unique_id": "{{ states(var_name_entity) }}_{{ var_reader_id }}",
+                  "device": {
+                    "identifiers": ["{{ states(var_name_entity) }}"],
+                    "name": "{{ states(var_name_entity) }}",
+                    "manufacturer": "{{ var_manufacturer }}",
+                    "model": "SmInt",
+                    "model_id": "SmInt_v1",
+                    "serial_number": "12345",
+                    "hw_version": "1.0",
+                    "sw_version": "2105.1.0",
+                    "configuration_url": "https://example.com/experiment_config"
+                  }
+                }
+
+      # ZWEIG 2: AUS -> Wert senden
+      - conditions:
+          - condition: trigger
+            id: "turn_off"
+        sequence:
+          # Das Delay aus deiner zweiten Automation (Sicherheitspuffer)
+          - delay:
+              seconds: 1
+          - service: mqtt.publish
+            data:
+              topic: "homeassistant/sensor/{{ states(var_name_entity) }}/{{ var_reader_id }}/state"
+              retain: true
+              qos: 0
+              payload: "{{ states(var_value_entity) }}"
