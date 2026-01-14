@@ -57,4 +57,4 @@ Der Blueprint nutzt `mqtt.publish` mit dynamischen Templates.
 
 Klicke auf den Button unten, um diesen Blueprint direkt in deine Home Assistant Instanz zu importieren:
 
-[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=(https://github.com/erpel1234/SmInt_blueprint/edit/main/blueprints/automation))
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=(https://github.com/erpel1234/SmInt_blueprint/blob/main/blueprints/automation/mqtt_device_erzeugen_SmInt.yaml))
