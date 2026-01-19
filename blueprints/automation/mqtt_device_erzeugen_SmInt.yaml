@@ -1,83 +1,102 @@
 blueprint:
-  name: SmInt - MASSIVE Scale Manager
-  description: >
-    Verwaltet DUTZENDE Tag-Reader in einer einzigen Automation.
-    VORAUSSETZUNG: Strenge Namensgleichheit der Helfer!
-    Wenn Schalter = ..._switch_XYZ, dann muss Text = ..._name_XYZ heißen.
+  name: SmInt - Universal MQTT Device Generator
+  description: Erstellt Sensoren und loggt Verbräuche für SmInt TR-K Reader.
   domain: automation
   input:
-    # Wir erlauben hier eine LISTE von Schaltern (multiple: true)
-    switch_entities:
-      name: Alle Schalter-Helfer
-      description: Wähle ALLE Tag-Reader Schalter aus (z.B. Tag 001 bis Tag 099).
+    switch_entity:
+      name: Auslöser-Schalter
+      description: z.B. input_boolean.tr_k_02_switch_tag_001
       selector:
         entity:
           domain: input_boolean
-          multiple: true  # <--- Das ist der Schlüssel!
-
-    # Wir definieren das Präfix für die anderen Helfer fest
-    text_prefix:
-      name: Prefix für Namens-Helfer
-      description: Z.B. "input_text.experiment_"
-      default: "input_text.experiment_"
     
-    number_prefix:
-      name: Prefix für Wert-Helfer
-      description: Z.B. "input_number.tr_k_01_kwh_um_added_"
-      default: "input_number.tr_k_01_kwh_um_added_"
+    name_entity:
+      name: Experiment Name
+      description: z.B. input_text.experiment_tag001
+      selector:
+        entity:
+          domain: input_text
+          
+    value_entity:
+      name: Messwert (Verbrauch)
+      description: z.B. input_number.tr_k_02_kwh_um_added_tag001
+      selector:
+        entity:
+          domain: input_number
 
-    reader_id:
-      name: Reader ID (MQTT)
-      description: Da alle Reader in diesem Blueprint denselben MQTT-Pfad nutzen, gilt dies für eine Reader-Gruppe (z.B. tr_k_01).
+    reader_id_string:
+      name: Reader ID (MQTT Topic)
+      description: "tr_k_01_kwh" oder "tr_k_02_kwh"
       default: "tr_k_01_kwh"
+
+    device_friendly_name:
+      name: Anzeigename
+      description: z.B. "03_Mikrowelle Stromverbrauch"
+      default: "SmInt Device"
+    
+    manufacturer_name:
+      name: Hersteller (Karte)
+      description: z.B. "Karte 001"
+      default: "SmInt Generic"
+
+variables:
+  var_name_entity: !input name_entity
+  var_value_entity: !input value_entity
+  var_friendly_name: !input device_friendly_name
+  var_manufacturer: !input manufacturer_name
+  var_reader_id: !input reader_id_string
 
 trigger:
   - platform: state
-    # Wir triggern auf JEDEN Schalter in der Liste
-    entity_id: !input switch_entities
+    entity_id: !input switch_entity
     from: "off"
     to: "on"
     id: "turn_on"
   - platform: state
-    entity_id: !input switch_entities
+    entity_id: !input switch_entity
     from: "on"
     to: "off"
     id: "turn_off"
 
-variables:
-  # 1. Wir holen uns die Entity ID des Schalters, der gerade gedrückt wurde
-  trigger_entity: "{{ trigger.entity_id }}"
-  
-  # 2. Wir extrahieren das Suffix (den eindeutigen Teil, z.B. "tag_001")
-  # Angenommen der Schalter heißt "input_boolean.tr_k_01_switch_tag_001"
-  # Wir splitten am letzten Unterstrich "_" oder nutzen string manipulation.
-  # Hier ein simpler Split-Ansatz (splitte bei 'switch_' und nimm den Rest):
-  suffix: "{{ trigger_entity.split('switch_')[1] }}" 
-  
-  # 3. Wir bauen uns die IDs der anderen Helfer zusammen
-  prefix_txt: !input text_prefix
-  prefix_num: !input number_prefix
-  
-  # Das Ergebnis ist z.B. "input_text.experiment_" + "tag_001"
-  target_text_entity: "{{ prefix_txt }}{{ suffix }}"
-  target_num_entity: "{{ prefix_num }}{{ suffix }}"
-  
-  var_reader_id: !input reader_id
-
 action:
   - choose:
+      # AN: Config senden
       - conditions:
           - condition: trigger
             id: "turn_on"
         sequence:
           - service: mqtt.publish
             data:
-              # Wir nutzen jetzt die errechnete "target_text_entity"
-              topic: "homeassistant/sensor/{{ states(target_text_entity) }}/{{ var_reader_id }}/config"
+              topic: "homeassistant/sensor/{{ states(var_name_entity) }}/{{ var_reader_id }}/config"
               retain: true
+              qos: 0
               payload: >
                 {
-                  "name": "Gerät {{ suffix }}",
-                  "unique_id": "{{ states(target_text_entity) }}_{{ var_reader_id }}",
-                  ... (Rest wie gehabt) ...
+                  "name": "{{ var_friendly_name }}",
+                  "state_topic": "homeassistant/sensor/{{ states(var_name_entity) }}/{{ var_reader_id }}/state",
+                  "unit_of_measurement": "kWh",
+                  "device_class": "energy",
+                  "state_class": "total",
+                  "unique_id": "{{ states(var_name_entity) }}_{{ var_reader_id }}",
+                  "device": {
+                    "identifiers": ["{{ states(var_name_entity) }}"],
+                    "name": "{{ states(var_name_entity) }}",
+                    "manufacturer": "{{ var_manufacturer }}",
+                    "model": "SmInt",
+                    "model_id": "SmInt_v1",
+                    "sw_version": "2105.1.0"
+                  }
                 }
+
+      # AUS: Wert senden
+      - conditions:
+          - condition: trigger
+            id: "turn_off"
+        sequence:
+          - delay: 1 
+          - service: mqtt.publish
+            data:
+              topic: "homeassistant/sensor/{{ states(var_name_entity) }}/{{ var_reader_id }}/state"
+              retain: true
+              qos: 0
+              payload: "{{ states(var_value_entity) }}"
