@@ -94,7 +94,6 @@ Erstelle eine Automation pro Tag-Slot.
 ## 🛠 Troubleshooting
 
 * **Gerät taucht nicht auf:** Prüfe in der Automation, ob die `Reader ID` (z.B. `tr_k_01_kwh`) exakt stimmt und keine Leerzeichen hat.
-* **Import Button Fehler:** Stelle sicher, dass dieses GitHub-Repository auf **Public** gestellt ist oder nutze den manuellen Import.
 * **Keine Verbrauchswerte:** Stelle sicher, dass die Template-Sensoren in deiner `configuration.yaml` definiert sind und Werte liefern.
 
 ---
