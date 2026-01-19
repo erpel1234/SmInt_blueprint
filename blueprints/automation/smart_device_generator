@@ -1,0 +1,116 @@
+blueprint:
+  name: SmInt - SMART Device Generator
+  description: >
+    Wähle NUR den Schalter. Der Rest (Text & Messwert) wird anhand des Namens automatisch gefunden.
+    Voraussetzung: Saubere Namenskonvention (tr_k_xx_switch_tag_xxx).
+  domain: automation
+  input:
+    switch_entity:
+      name: Auslöser-Schalter
+      description: Wähle den Schalter (z.B. input_boolean.tr_k_01_switch_tag_001).
+      selector:
+        entity:
+          domain: input_boolean
+
+    device_friendly_name:
+      name: Anzeigename
+      description: Name in Home Assistant (z.B. Mikrowelle)
+      default: SmInt Device
+      selector:
+        text:
+
+    manufacturer_name:
+      name: Hersteller (Karte)
+      description: Hersteller-Info (z.B. Karte 001)
+      default: SmInt Generic
+      selector:
+        text:
+
+variables:
+  # 1. Wir holen die ID des ausgewählten Schalters
+  trigger_entity: !input switch_entity
+  
+  # 2. Reader ID extrahieren
+  # Von "input_boolean.tr_k_01_switch_tag_001" -> nimm Teil nach dem Punkt, vor "_switch"
+  # Ergebnis: "tr_k_01"
+  reader_code: "{{ trigger_entity.split('.')[1].split('_switch')[0] }}"
+  
+  # 3. Suffix (Tag ID) extrahieren
+  # Von "input_boolean.tr_k_01_switch_tag_001" -> nimm alles nach "switch_"
+  # Ergebnis: "tag_001"
+  suffix_raw: "{{ trigger_entity.split('switch_')[1] }}"
+  
+  # 4. Suffix bereinigen (Unterschied zwischen tag_001 und tag001 korrigieren)
+  # Wir entfernen den Unterstrich, damit es zu deinen anderen Helfern passt
+  # Ergebnis: "tag001"
+  suffix_clean: "{{ suffix_raw.replace('_', '') }}"
+
+  # 5. Die anderen Helfer "errechnen"
+  # Text: input_text.experiment_tag001
+  calc_name_entity: "input_text.experiment_{{ suffix_clean }}"
+  
+  # Wert: input_number.tr_k_01_kwh_um_added_tag001
+  calc_value_entity: "input_number.{{ reader_code }}_kwh_um_added_{{ suffix_clean }}"
+  
+  # MQTT Topic ID: tr_k_01_kwh
+  calc_mqtt_reader_id: "{{ reader_code }}_kwh"
+
+  # Inputs mappen
+  var_friendly_name: !input device_friendly_name
+  var_manufacturer: !input manufacturer_name
+
+trigger:
+  - platform: state
+    entity_id: !input switch_entity
+    from: "off"
+    to: "on"
+    id: "turn_on"
+  - platform: state
+    entity_id: !input switch_entity
+    from: "on"
+    to: "off"
+    id: "turn_off"
+
+action:
+  - choose:
+      # AN: Config senden
+      - conditions:
+          - condition: trigger
+            id: "turn_on"
+        sequence:
+          - service: mqtt.publish
+            data:
+              # Wir nutzen jetzt die "calc_" Variablen
+              topic: "homeassistant/sensor/{{ states(calc_name_entity) }}/{{ calc_mqtt_reader_id }}/config"
+              retain: true
+              qos: 0
+              payload: >
+                {
+                  "name": "{{ var_friendly_name }}",
+                  "state_topic": "homeassistant/sensor/{{ states(calc_name_entity) }}/{{ calc_mqtt_reader_id }}/state",
+                  "unit_of_measurement": "kWh",
+                  "device_class": "energy",
+                  "state_class": "total",
+                  "unique_id": "{{ states(calc_name_entity) }}_{{ calc_mqtt_reader_id }}",
+                  "device": {
+                    "identifiers": ["{{ states(calc_name_entity) }}"],
+                    "name": "{{ states(calc_name_entity) }}",
+                    "manufacturer": "{{ var_manufacturer }}",
+                    "model": "SmInt",
+                    "model_id": "SmInt_v1",
+                    "sw_version": "2105.1.0"
+                  }
+                }
+
+      # AUS: Wert senden
+      - conditions:
+          - condition: trigger
+            id: "turn_off"
+        sequence:
+          - delay: 1 
+          - service: mqtt.publish
+            data:
+              topic: "homeassistant/sensor/{{ states(calc_name_entity) }}/{{ calc_mqtt_reader_id }}/state"
+              retain: true
+              qos: 0
+              payload: "{{ states(calc_value_entity) }}"
