@@ -26,7 +26,7 @@ blueprint:
 
     reader_id_string:
       name: Reader ID (MQTT Topic)
-      description: "tr_k_01_kwh" oder "tr_k_02_kwh"
+      description: "tr_k_01_kwh" or "tr_k_02_kwh"
       default: "tr_k_01_kwh"
 
     device_friendly_name:
