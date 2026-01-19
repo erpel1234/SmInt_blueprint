@@ -1,0 +1,34 @@
+blueprint:
+  name: SmInt - Card to Switch Mapper
+  description: Verbindet eine physische RFID-UID mit einem virtuellen Schalter.
+  domain: automation
+  input:
+    reader_sensor:
+      name: RFID Reader Sensor
+      description: Der Sensor, der die UID anzeigt (z.B. sensor.tr_k_01_uid).
+      selector:
+        entity:
+          domain: sensor
+    
+    card_uid:
+      name: Karten UID
+      description: Die ID der Karte, auf die reagiert werden soll (z.B. 90-9D-25-20).
+      selector:
+        text:
+
+    target_switch:
+      name: Zu schaltender Helfer
+      description: Der Boolean, der getoggled wird (z.B. input_boolean.tr_k_01_switch_tag_001).
+      selector:
+        entity:
+          domain: input_boolean
+
+trigger:
+  - platform: state
+    entity_id: !input reader_sensor
+    to: !input card_uid
+
+action:
+  - service: input_boolean.toggle
+    target:
+      entity_id: !input target_switch
