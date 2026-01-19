@@ -1,0 +1,37 @@
+blueprint:
+  name: SmInt - Experiment Name Generator
+  description: Generiert einen zufälligen Experiment-Namen (Datum + Basis + Random).
+  domain: script
+  input:
+    base_name_entity:
+      name: Basis-Name Input
+      description: Der Input Text, wo der Nutzer den Namen eintippt (z.B. input_text.input_experiment_tag001)
+      selector:
+        entity:
+          domain: input_text
+    target_name_entity:
+      name: Ziel-Name Input
+      description: Der Input Text, wo das Ergebnis gespeichert wird (z.B. input_text.experiment_tag001)
+      selector:
+        entity:
+          domain: input_text
+
+sequence:
+  - variables:
+      var_base_entity: !input base_name_entity
+      var_target_entity: !input target_name_entity
+      # Wir lesen den State direkt in der Variable aus
+      base_value: "{{ states(var_base_entity) }}"
+      timestamp: "{{ now().strftime('%Y%m%d') }}"
+      random_suffix: >
+        {% set chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789' %}
+        {% set code = namespace(val='') %}
+        {% for _ in range(4) %}
+          {% set code.val = code.val + chars | random %}
+        {% endfor %}
+        {{ code.val }}
+  - action: input_text.set_value
+    target:
+      entity_id: !input target_name_entity
+    data:
+      value: "{{ timestamp }}_{{ base_value }}_{{ random_suffix }}"
