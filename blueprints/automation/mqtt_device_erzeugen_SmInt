@@ -5,39 +5,45 @@ blueprint:
   input:
     switch_entity:
       name: Auslöser-Schalter
-      description: z.B. input_boolean.tr_k_02_switch_tag_001
+      description: 'Der Input Boolean (z.B. input_boolean.tr_k_02_switch_tag_001)'
       selector:
         entity:
           domain: input_boolean
     
     name_entity:
       name: Experiment Name
-      description: z.B. input_text.experiment_tag001
+      description: 'Der Input Text (z.B. input_text.experiment_tag001)'
       selector:
         entity:
           domain: input_text
           
     value_entity:
       name: Messwert (Verbrauch)
-      description: z.B. input_number.tr_k_02_kwh_um_added_tag001
+      description: 'Der Input Number (z.B. input_number.tr_k_02_kwh_um_added_tag001)'
       selector:
         entity:
           domain: input_number
 
     reader_id_string:
       name: Reader ID (MQTT Topic)
-      description: "tr_k_01_kwh" or "tr_k_02_kwh"
+      description: 'Die Kennung im MQTT Topic (z.B. "tr_k_01_kwh" oder "tr_k_02_kwh")'
       default: "tr_k_01_kwh"
+      selector:
+        text:
 
     device_friendly_name:
       name: Anzeigename
-      description: z.B. "03_Mikrowelle Stromverbrauch"
+      description: 'Name in Home Assistant (z.B. "03_Mikrowelle Stromverbrauch")'
       default: "SmInt Device"
+      selector:
+        text:
     
     manufacturer_name:
       name: Hersteller (Karte)
-      description: z.B. "Karte 001"
+      description: 'Hersteller-Info (z.B. "Karte 001")'
       default: "SmInt Generic"
+      selector:
+        text:
 
 variables:
   var_name_entity: !input name_entity
